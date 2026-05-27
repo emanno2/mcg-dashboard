@@ -46,3 +46,4 @@ src/
 3. **Approval detail modal** — full photo viewer + estimate editor before approving
 4. **Real GHL webhook integration** — replace mockData with live API calls
 5. **SMS conversation thread** — view the AI ↔ customer SMS history per lead
+# mcg-dashboard
