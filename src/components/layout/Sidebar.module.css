@@ -1,0 +1,121 @@
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 1.25rem 1rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0.5rem;
+}
+
+.logoIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  background: var(--green-400);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.logoName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.logoSub {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.25rem 0.5rem;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  transition: background var(--transition), color var(--transition);
+  width: 100%;
+}
+
+.navItem:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.navItemActive {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.navItemActive svg { color: var(--green-400); }
+
+.navLabel { flex: 1; }
+
+.navBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+}
+.navBadgeNeutral { background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+.navBadgeDanger  { background: var(--danger-bg); color: var(--danger-text); }
+
+.sidebarFooter {
+  padding: 0.75rem 0.75rem 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.userAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(29,158,117,0.2);
+  color: var(--green-400);
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.userName  { font-size: 12px; font-weight: 500; color: var(--text-primary); }
+.userRole  { font-size: 10px; color: var(--text-muted); }

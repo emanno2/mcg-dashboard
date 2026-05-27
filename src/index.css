@@ -1,0 +1,110 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+
+  /* Brand */
+  --green-50:  #e8f7f0;
+  --green-100: #c2ebd7;
+  --green-400: #1D9E75;
+  --green-600: #0F6E56;
+  --green-900: #04342C;
+
+  --amber-50:  #fdf3e3;
+  --amber-100: #fce0a8;
+  --amber-400: #EF9F27;
+  --amber-600: #BA7517;
+
+  --red-50:    #fdeaea;
+  --red-400:   #E24B4A;
+  --red-600:   #A32D2D;
+
+  --blue-50:   #e8f0fb;
+  --blue-400:  #378ADD;
+  --blue-600:  #185FA5;
+
+  --purple-400: #7F77DD;
+  --purple-600: #534AB7;
+
+  /* Dark bg palette */
+  --bg-base:      #0e1012;
+  --bg-surface:   #151719;
+  --bg-elevated:  #1c1f22;
+  --bg-hover:     #222529;
+  --bg-active:    #272b2f;
+
+  /* Borders */
+  --border-subtle:  rgba(255,255,255,0.06);
+  --border-default: rgba(255,255,255,0.10);
+  --border-strong:  rgba(255,255,255,0.18);
+
+  /* Text */
+  --text-primary:   #f0f0ee;
+  --text-secondary: #8a8f97;
+  --text-muted:     #50555c;
+  --text-inverse:   #0e1012;
+
+  /* Semantic */
+  --success-bg:   rgba(29,158,117,0.12);
+  --success-text: #4ecfa0;
+  --warning-bg:   rgba(239,159,39,0.12);
+  --warning-text: #f5c96a;
+  --danger-bg:    rgba(226,75,74,0.12);
+  --danger-text:  #f07878;
+  --info-bg:      rgba(55,138,221,0.12);
+  --info-text:    #73b4f0;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --transition: 150ms ease;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--green-400);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+button { cursor: pointer; font-family: inherit; }
+a { color: inherit; text-decoration: none; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease both;
+}

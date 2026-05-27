@@ -1,0 +1,51 @@
+.liveRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.liveLabel {
+  font-size: 11px;
+  color: var(--success-text);
+  font-weight: 500;
+}
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 4px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  animation: fadeIn 0.25s ease both;
+  transition: background var(--transition);
+}
+.line:hover { background: var(--bg-hover); }
+
+.iconWrap {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.time {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 46px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+}
+
+.msg { color: var(--text-secondary); line-height: 1.4; }
+
+.highlight {
+  color: var(--text-primary);
+  font-weight: 500;
+}
