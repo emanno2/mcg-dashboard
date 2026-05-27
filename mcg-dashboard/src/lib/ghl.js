@@ -2,7 +2,8 @@ const LOCATION_ID = import.meta.env.VITE_GHL_LOCATION_ID
 const API_KEY     = import.meta.env.VITE_GHL_API_KEY
 
 // Dev: Vite proxy | Prod: Vercel serverless function at /api/ghl
-const IS_DEV = import.meta.env.DEV
+// import.meta.env.PROD is true when built with vite build
+const IS_DEV = !import.meta.env.PROD
 
 async function request(path, version = 'v2') {
   let url, headers
