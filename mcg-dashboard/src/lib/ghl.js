@@ -1,50 +1,78 @@
-const LOCATION_ID = import.meta.env.VITE_GHL_LOCATION_ID
-const API_KEY     = import.meta.env.VITE_GHL_API_KEY
+// GHL API client
+// In production: all calls go through /api/ghl (Vercel serverless, no CORS)
+// In dev: calls go through Vite proxy defined in vite.config.js
 
-// Dev: Vite proxy | Prod: Vercel serverless function at /api/ghl
-// import.meta.env.PROD is true when built with vite build
-const IS_DEV = !import.meta.env.PROD
+const IS_PROD = import.meta.env.PROD
 
-async function request(path, version = 'v2') {
+// ── Core fetch ────────────────────────────────────────────────────────────────
+// In prod, everything routes through /api/ghl?endpoint=X&param=Y
+// In dev, uses direct GHL URLs via Vite proxy
+async function ghlFetch(endpoint, params = {}) {
   let url, headers
 
-  if (IS_DEV) {
-    const base = version === 'v2' ? '/ghl-v2' : '/ghl-v1'
-    url = `${base}${path}`
+  if (IS_PROD) {
+    // Server-side proxy — no CORS, key stays on server
+    const qs = new URLSearchParams({ endpoint, ...params })
+    url     = `/api/ghl?${qs}`
+    headers = { 'Content-Type': 'application/json' }
+  } else {
+    // Dev: use Vite proxy + env vars from .env
+    const API_KEY     = import.meta.env.VITE_GHL_API_KEY
+    const LOCATION_ID = import.meta.env.VITE_GHL_LOCATION_ID
+
+    const routes = {
+      pipelines:    { base: '/ghl-v2', path: `/opportunities/pipelines?locationId=${LOCATION_ID}`, v: 2 },
+      opportunities:{ base: '/ghl-v2', path: `/opportunities/search`, v: 2 },
+      contacts:     { base: '/ghl-v1', path: `/contacts/?locationId=${LOCATION_ID}&limit=${params.limit||100}`, v: 1 },
+      appointments: { base: '/ghl-v1', path: `/appointments/`, v: 1 },
+      calendars:    { base: '/ghl-v2', path: `/calendars/?locationId=${LOCATION_ID}`, v: 2 },
+    }
+
+    const route = routes[endpoint]
+    if (!route) throw new Error(`Unknown endpoint: ${endpoint}`)
+
+    if (endpoint === 'opportunities') {
+      const qs = new URLSearchParams({ location_id: LOCATION_ID, limit: params.limit || 100 })
+      if (params.pipeline_id) qs.set('pipeline_id', params.pipeline_id)
+      url = `${route.base}${route.path}?${qs}`
+    } else if (endpoint === 'appointments') {
+      const qs = new URLSearchParams({ locationId: LOCATION_ID })
+      if (params.startDate) qs.set('startDate', params.startDate)
+      if (params.endDate)   qs.set('endDate',   params.endDate)
+      url = `${route.base}${route.path}?${qs}`
+    } else {
+      url = `${route.base}${route.path}`
+    }
+
     headers = {
       Authorization: `Bearer ${API_KEY}`,
       'Content-Type': 'application/json',
-      ...(version === 'v2' ? { Version: '2021-07-28' } : {}),
+      ...(route.v === 2 ? { Version: '2021-07-28' } : {}),
     }
-  } else {
-    // Use Vercel serverless proxy — strips leading slash, passes version prefix
-    const cleanPath = path.replace(/^\//, '')
-    const prefix = version === 'v2' ? 'v2/' : 'v1/'
-    // Split path and query
-    const [pathPart, queryPart] = cleanPath.split('?')
-    const params = new URLSearchParams(queryPart || '')
-    params.set('path', `${prefix}${pathPart}`)
-    url = `/api/ghl?${params.toString()}`
-    headers = { 'Content-Type': 'application/json' }
   }
 
+  console.log(`[GHL] ${IS_PROD ? 'PROD' : 'DEV'} → ${endpoint}`, IS_PROD ? '' : url)
+
   const res = await fetch(url, { headers })
+
   if (!res.ok) {
     const body = await res.text().catch(() => '')
+    console.error(`[GHL] Error ${res.status} on ${endpoint}:`, body)
     throw new Error(`GHL ${res.status}: ${body}`)
   }
+
   return res.json()
 }
 
-// ─── PIPELINES ────────────────────────────────────────────────────────────────
+// ── PIPELINES ─────────────────────────────────────────────────────────────────
 export async function fetchPipelines() {
-  const data = await request(`/opportunities/pipelines?locationId=${LOCATION_ID}`)
+  const data = await ghlFetch('pipelines')
+  console.log('[GHL] Pipelines:', (data.pipelines || []).map(p => p.name))
   return data.pipelines || []
 }
 
-// ─── OPPORTUNITIES ────────────────────────────────────────────────────────────
+// ── OPPORTUNITIES ─────────────────────────────────────────────────────────────
 export async function fetchOpportunities({ pipelineName = null, limit = 100 } = {}) {
-  const safeLimit = Math.min(limit, 100)
   let pipelineId = null
 
   if (pipelineName) {
@@ -53,70 +81,59 @@ export async function fetchOpportunities({ pipelineName = null, limit = 100 } = 
       const match = pipelines.find(p =>
         p.name?.toLowerCase().includes(pipelineName.toLowerCase())
       )
+      console.log('[GHL] Pipeline match for', pipelineName, '→', match?.name, match?.id)
       if (match) pipelineId = match.id
-      console.log('Pipelines found:', pipelines.map(p => p.name))
-      console.log('Matched pipeline:', match?.name, match?.id)
     } catch (e) {
-      console.warn('Could not fetch pipelines:', e.message)
+      console.warn('[GHL] Pipeline fetch failed:', e.message)
     }
   }
 
-  const params = new URLSearchParams({
-    location_id: LOCATION_ID,
-    limit: String(safeLimit),
+  const data = await ghlFetch('opportunities', {
+    limit: String(Math.min(limit, 100)),
     ...(pipelineId ? { pipeline_id: pipelineId } : {}),
   })
 
-  const data = await request(`/opportunities/search?${params}`)
+  console.log('[GHL] Opportunities count:', (data.opportunities || []).length)
   return (data.opportunities || []).map(normalizeOpportunity)
 }
 
-// ─── CONTACTS ─────────────────────────────────────────────────────────────────
+// ── CONTACTS ──────────────────────────────────────────────────────────────────
 export async function fetchContacts(limit = 100) {
-  const data = await request(`/contacts/?locationId=${LOCATION_ID}&limit=${limit}`, 'v1')
+  const data = await ghlFetch('contacts', { limit: String(limit) })
+  console.log('[GHL] Contacts count:', (data.contacts || []).length)
   return (data.contacts || []).map(normalizeContact)
 }
 
-// ─── CALENDARS ────────────────────────────────────────────────────────────────
+// ── CALENDARS ─────────────────────────────────────────────────────────────────
 export async function fetchCalendars() {
   try {
-    const data = await request(`/calendars/?locationId=${LOCATION_ID}`)
+    const data = await ghlFetch('calendars')
     return data.calendars || []
   } catch (e) {
-    console.warn('Calendars unavailable:', e.message)
+    console.warn('[GHL] Calendars unavailable:', e.message)
     return []
   }
 }
 
-// ─── APPOINTMENTS ─────────────────────────────────────────────────────────────
+// ── APPOINTMENTS ──────────────────────────────────────────────────────────────
 export async function fetchAppointments(startDate, endDate) {
   try {
-    const params = new URLSearchParams({
-      locationId: LOCATION_ID,
-      startDate:  startDate.toISOString(),
-      endDate:    endDate.toISOString(),
+    const data = await ghlFetch('appointments', {
+      startDate: startDate.toISOString(),
+      endDate:   endDate.toISOString(),
     })
-    const data = await request(`/appointments/?${params}`, 'v1')
     return (data.appointments || []).map(normalizeAppointment)
   } catch (e) {
-    console.warn('Appointments v1 failed, trying v2:', e.message)
-    try {
-      const params = new URLSearchParams({
-        locationId: LOCATION_ID,
-        startTime:  String(startDate.getTime()),
-        endTime:    String(endDate.getTime()),
-      })
-      const data = await request(`/calendars/events?${params}`)
-      return (data.events || []).map(normalizeCalendarEvent)
-    } catch (e2) {
-      console.warn('Appointments v2 also failed:', e2.message)
-      return []
-    }
+    console.warn('[GHL] Appointments failed:', e.message)
+    return []
   }
 }
 
-// ─── CREATE APPOINTMENT ───────────────────────────────────────────────────────
+// ── CREATE APPOINTMENT ────────────────────────────────────────────────────────
 export async function createAppointment(appt) {
+  const LOCATION_ID = import.meta.env.VITE_GHL_LOCATION_ID
+  const API_KEY     = import.meta.env.VITE_GHL_API_KEY
+
   const body = {
     locationId:        LOCATION_ID,
     title:             appt.title,
@@ -126,13 +143,15 @@ export async function createAppointment(appt) {
     ...(appt.calendarId ? { calendarId: appt.calendarId } : {}),
     ...(appt.contactId  ? { contactId:  appt.contactId  } : {}),
   }
-  const headers = {
-    Authorization: `Bearer ${API_KEY}`,
-    'Content-Type': 'application/json',
-  }
-  const url = IS_DEV
-    ? '/ghl-v1/appointments/'
-    : 'https://rest.gohighlevel.com/v1/appointments/'
+
+  const url = IS_PROD
+    ? '/api/ghl-create-appointment'
+    : '/ghl-v1/appointments/'
+
+  const headers = IS_PROD
+    ? { 'Content-Type': 'application/json' }
+    : { Authorization: `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }
+
   const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
   if (!res.ok) {
     const text = await res.text()
@@ -141,10 +160,19 @@ export async function createAppointment(appt) {
   return res.json()
 }
 
-// ─── CONVERSATIONS ────────────────────────────────────────────────────────────
+// ── CONVERSATIONS ─────────────────────────────────────────────────────────────
 export async function fetchRecentConversations(limit = 20) {
   try {
-    const data = await request(`/conversations/search?locationId=${LOCATION_ID}&limit=${limit}`, 'v1')
+    const LOCATION_ID = import.meta.env.VITE_GHL_LOCATION_ID
+    const API_KEY     = import.meta.env.VITE_GHL_API_KEY
+    const url = IS_PROD
+      ? `/api/ghl?endpoint=conversations&limit=${limit}`
+      : `/ghl-v1/conversations/search?locationId=${LOCATION_ID}&limit=${limit}`
+    const headers = IS_PROD
+      ? {}
+      : { Authorization: `Bearer ${API_KEY}` }
+    const res  = await fetch(url, { headers })
+    const data = await res.json()
     return (data.conversations || []).map(c => ({
       id:          c.id,
       name:        c.contactName || 'Unknown',
@@ -153,12 +181,12 @@ export async function fetchRecentConversations(limit = 20) {
       unread:      c.unreadCount || 0,
     }))
   } catch (e) {
-    console.warn('Conversations unavailable:', e.message)
+    console.warn('[GHL] Conversations unavailable:', e.message)
     return []
   }
 }
 
-// ─── NORMALIZERS ──────────────────────────────────────────────────────────────
+// ── NORMALIZERS ───────────────────────────────────────────────────────────────
 function normalizeOpportunity(o) {
   const contactName = o.contact?.name
     || [o.contact?.firstName, o.contact?.lastName].filter(Boolean).join(' ')
@@ -224,55 +252,30 @@ function normalizeAppointment(a) {
     date:      start.toISOString().split('T')[0],
     startTime: formatTime12(start),
     endTime:   formatTime12(end),
-    startIso:  start.toISOString(),
-    endIso:    end.toISOString(),
     service:   a.title || 'Appointment',
-    address:   a.contact?.address1 || a.location || '',
+    address:   a.contact?.address1 || '',
     phone:     a.contact?.phone || '',
-    contactId: a.contact?.id || a.contactId || '',
-    crew:      a.assignedUser || 'Owner',
+    crew:      'Owner',
     type:      classifyJobType(a.title || ''),
-    calendarId: a.calendarId || '',
     status:    a.appointmentStatus || 'confirmed',
     notes:     a.notes || '',
     raw:       a,
   }
 }
 
-function normalizeCalendarEvent(e) {
-  const start = new Date(e.startTime)
-  const end   = new Date(e.endTime || e.startTime)
-  return {
-    id: e.id, initials: '??', avatarColor: pickColor(e.id),
-    name:      e.title || 'Event',
-    date:      start.toISOString().split('T')[0],
-    startTime: formatTime12(start),
-    endTime:   formatTime12(end),
-    startIso:  start.toISOString(),
-    endIso:    end.toISOString(),
-    service:   e.title || 'Appointment',
-    address:   e.location || '',
-    phone:     '', contactId: '', crew: 'Owner',
-    type:      classifyJobType(e.title || ''),
-    calendarId: e.calendarId || '',
-    status:    e.status || 'confirmed',
-    notes:     e.notes || '', raw: e,
-  }
-}
-
 function classifyJobType(title) {
   const t = title.toLowerCase()
-  if (t.includes('estimate') || t.includes('quote') || t.includes('consult')) return 'estimate'
-  if (t.includes('mow') || t.includes('lawn') || t.includes('cut'))           return 'lawn'
-  if (t.includes('mulch') || t.includes('bed') || t.includes('edge'))         return 'mulch'
-  if (t.includes('patio') || t.includes('paver') || t.includes('wall') || t.includes('stone')) return 'hardscape'
-  if (t.includes('cleanup') || t.includes('clean') || t.includes('leaf'))     return 'cleanup'
-  if (t.includes('plant') || t.includes('install') || t.includes('sod'))      return 'install'
-  if (t.includes('tree') || t.includes('trim') || t.includes('prune'))        return 'tree'
+  if (t.includes('estimate') || t.includes('quote'))  return 'estimate'
+  if (t.includes('mow') || t.includes('lawn'))        return 'lawn'
+  if (t.includes('mulch') || t.includes('bed'))       return 'mulch'
+  if (t.includes('patio') || t.includes('paver') || t.includes('wall')) return 'hardscape'
+  if (t.includes('cleanup') || t.includes('clean'))   return 'cleanup'
+  if (t.includes('plant') || t.includes('sod'))       return 'install'
+  if (t.includes('tree') || t.includes('trim'))       return 'tree'
   return 'job'
 }
 
-// ─── UTILS ────────────────────────────────────────────────────────────────────
+// ── UTILS ─────────────────────────────────────────────────────────────────────
 const COLORS = ['#1D9E75','#378ADD','#EF9F27','#7F77DD','#E24B4A','#4ecfa0','#e879f9','#34d399','#f97316','#22d3ee']
 
 function pickColor(str = '') {
@@ -281,28 +284,26 @@ function pickColor(str = '') {
   return COLORS[Math.abs(h) % COLORS.length]
 }
 
-function slugify(str = '') {
-  return str.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
-}
+function slugify(s = '') { return s.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'') }
 
 function deriveVariant(stageName = '', status = '') {
   const s = (stageName + status).toLowerCase()
-  if (s.includes('won') || s.includes('book'))      return 'success'
-  if (s.includes('lost'))                            return 'danger'
+  if (s.includes('won') || s.includes('book') || s.includes('complete')) return 'success'
+  if (s.includes('lost') || s.includes('cancel'))   return 'danger'
   if (s.includes('approv') || s.includes('review')) return 'danger'
-  if (s.includes('sent') || s.includes('estimate')) return 'warning'
+  if (s.includes('sent') || s.includes('estimate') || s.includes('quote')) return 'warning'
   if (s.includes('qualif') || s.includes('ready'))  return 'info'
   return 'neutral'
 }
 
 function formatDate(iso) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
 }
 function formatTime(iso) {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' })
 }
 function formatTime12(d) {
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' })
 }
 function formatTimeAgo(iso) {
   const diff = Date.now() - new Date(iso).getTime()
