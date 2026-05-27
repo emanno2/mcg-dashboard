@@ -69,10 +69,10 @@ export default function Dashboard() {
 
   const { data: appointments } = useAppointments()
 
-  // Filter to New Lead stage only
+  // Filter to New Lead stage — matches GHL stage name "Lead"
   const newLeads = (opps || []).filter(o => {
     const s = (o.stageLabel || o.stage || '').toLowerCase()
-    return s.includes('new') || s.includes('lead') || o.status === 'open'
+    return s.includes('lead') || s.includes('new') || o.status === 'open'
   })
 
   const allOpps    = opps || []

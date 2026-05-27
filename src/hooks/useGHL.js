@@ -59,7 +59,7 @@ export function useAppointments(weekOffset = 0) {
 
 export function usePJOpportunities(opts = {}) {
   return useAsync(
-    () => fetchOpportunities({ pipelineName: 'P&J', limit: 100 }),
+    () => fetchOpportunities({ pipelineName: 'Sales Pipeline', limit: 100 }),
     { autoRefreshMs: 60000, ...opts }
   )
 }
